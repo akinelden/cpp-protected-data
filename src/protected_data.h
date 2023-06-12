@@ -5,7 +5,6 @@
 #include <shared_mutex>
 #include <optional>
 
-#pragma region unique_guard
 template<typename T>
 class unique_guard
 {
@@ -25,9 +24,7 @@ public:
 		return &obj;
 	}
 };
-#pragma endregion
 
-#pragma region shared_guard
 template<typename T>
 class shared_guard
 {
@@ -47,9 +44,7 @@ public:
 		return &obj;
 	}
 };
-#pragma endregion
 
-#pragma region protected_data
 template<typename T>
 class protected_data
 {
@@ -102,6 +97,5 @@ public:
 			return {};
 	}
 };
-#pragma endregion
 
 #endif
