@@ -1,20 +1,25 @@
-// example usage of protected_data
+// example usage of protected_data with shared mutex
 
 #include <optional>
 #include <vector>
 #include <chrono>
 #include <shared_mutex>
 #include <thread>
+#include <iostream>
+
 #include "protected_data.h"
 
 using namespace std;
 
+// alias for protected_data with shared_mutex
+template <typename T>
+using shared_protected_data = protected_data<T, std::shared_mutex>;
 
 class Shape
 {
 protected:
     string name;
-    
+
 public:
     Shape() : name("shape") {};
     Shape(string_view _name) : name(_name) {};
@@ -26,7 +31,8 @@ public:
 class Square : public Shape
 {
     int edge;
-    protected_data<vector<int>> other_values;
+    // mark protected_data members as mutable to support safe manipulation in outer shared_guard
+    mutable shared_protected_data<vector<int>> other_values;
 
 public:
     Square(int _edge) : Shape("square"), edge(_edge) {};
@@ -34,28 +40,29 @@ public:
     int get_edge() const { return edge; }
     void set_edge(int new_edge) { edge = new_edge; }
 
+    // add_value is const and thread-safe since other_values is mutable protected_data
     void add_value(int val) const
     {
         auto guard = other_values.get_unique();
         guard->push_back(val);
     }
 
-    int get_number_of_values() const 
+    int get_number_of_values() const
     {
         auto guard = other_values.get_shared();
         // guard->clear()  ----- doesn't compile
         return guard->size();
     }
 
-    
+
 };
 
 class ShapeManager
 {
-    vector<shared_ptr<protected_data<Shape>>> shapes;
+    vector<shared_ptr<shared_protected_data<Shape>>> shapes;
 
 public:
-    void add_shape(shared_ptr<protected_data<Shape>> const& pShape)
+    void add_shape(shared_ptr<shared_protected_data<Shape>> const& pShape)
     {
         shapes.push_back(pShape);
     }
@@ -65,7 +72,7 @@ public:
         return shapes.size();
     }
 
-    shared_ptr<protected_data<Shape>> get_shape_at(unsigned int index)
+    shared_ptr<shared_protected_data<Shape>> get_shape_at(unsigned int index)
     {
         if (index < shapes.size())
             return shapes[index];
@@ -81,11 +88,14 @@ int main() {
 
     ShapeManager manager;
 
-    manager.add_shape(make_shared<protected_data<Shape>>("generic1"));
-    manager.add_shape(shared_ptr<protected_data<Shape>>(new protected_data<Shape>((Shape*)new Square(5))));
-    manager.add_shape(make_shared<protected_data<Shape>>("generic2"));
-    manager.add_shape(make_shared<protected_data<Shape>>());
-    
+    manager.add_shape(make_shared<shared_protected_data<Shape>>("generic1"));
+    {
+        auto square_ptr = make_shared<shared_protected_data<Square>>(5);
+        manager.add_shape(cast_shared_ptr_protected_data<Shape>(square_ptr).value());
+    }
+    manager.add_shape(make_shared<shared_protected_data<Shape>>("generic2"));
+    manager.add_shape(make_shared<shared_protected_data<Shape>>());
+
     int N = manager.get_n_shapes();
     for (unsigned int i = 0; i < N; ++i)
     {
@@ -138,7 +148,7 @@ int main() {
             }
         }
     }
-    
+
     // call from multiple threads
 
     auto pShape = manager.get_shape_at(0);
